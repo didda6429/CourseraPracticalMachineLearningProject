@@ -1,0 +1,39 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Adithya Diddapur"
+date: "2 April 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Practical Machine Learning Course Project
+
+###Part 1: Exploratory Data Analysis
+Let's start by loading the data and examining it for missing values. We are going to examine it for missing values by producing a missmap plot from the Amelia package. This plot gives us a good understanding of
+which variables are missing from the data.
+```{r, cache=TRUE, message=FALSE}
+trainingData <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testingData <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+
+library(Amelia)
+missmap(trainingData, main="Missing Values")
+```
+As you can see, around halof of the variables have most observations, but some of the variables are
+missing most observations. If we include them, they'll increase the bias in our model, so lets remove
+them by filtering out variables where more than 50% of the observations are missing.
+```{r, cache=TRUE}
+variablesToRemove <- sapply(trainingData, function(x)sum(is.na(x))>(length(x)*0.5))
+filteredTrainingData <- trainingData[!variablesToRemove]
+```
+
+###Part 2: Model Selection
+Let's start by creating a linear model, random forest, and lda model and seeing how well they performs.
+```{r, cache=TRUE}
+library(caret)
+lModel <- lm(classe~., filteredTrainingData)
+confusionMatrix()
+```
+
