@@ -7,6 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(Amelia)
+library(caret)
 ```
 
 ## Practical Machine Learning Course Project
@@ -15,25 +18,47 @@ knitr::opts_chunk$set(echo = TRUE)
 Let's start by loading the data and examining it for missing values. We are going to examine it for missing values by producing a missmap plot from the Amelia package. This plot gives us a good understanding of
 which variables are missing from the data.
 ```{r, cache=TRUE, message=FALSE}
-trainingData <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
-testingData <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+rawTraining <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", stringsAsFactors = FALSE)
+rawTesting <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", stringsAsFactors = FALSE)
 
-library(Amelia)
-missmap(trainingData, main="Missing Values")
+missmap(rawTraining, main="Missing Values")
 ```
-As you can see, around halof of the variables have most observations, but some of the variables are
+
+As you can see, around half of the variables have most observations, but some of the variables are
 missing most observations. If we include them, they'll increase the bias in our model, so lets remove
-them by filtering out variables where more than 50% of the observations are missing.
+them by filtering out variables where more than 50% of the observations are missing. We can them remove those
+variables from both the training and testing dataset, as well as the variables which aren't relevant to us (such as
+the timestamp and username).
 ```{r, cache=TRUE}
-variablesToRemove <- sapply(trainingData, function(x)sum(is.na(x))>(length(x)*0.5))
-filteredTrainingData <- trainingData[!variablesToRemove]
+missingVariables <- sapply(rawTraining, function(x)sum(is.na(x))<(length(x)*0.5)&&sum(x=="")<(length(x)*0.5))
+training <- rawTraining[missingVariables] %>%
+  select(-X, -user_name, -raw_timestamp_part_1, -raw_timestamp_part_2, -cvtd_timestamp, -new_window, -num_window)
+training$classe <- factor(training$classe)
+
+testing <- rawTesting[missingVariables] %>%
+  select(-X, -user_name, -raw_timestamp_part_1, -raw_timestamp_part_2, -cvtd_timestamp, -new_window, -num_window)
 ```
 
 ###Part 2: Model Selection
-Let's start by creating a linear model, random forest, and lda model and seeing how well they performs.
+Now let's train a random-forest model to use on the test set. To test our model, lets use 10-fold cross validation from the caret package. We can later use this to evalute the performance of our model and predict the expected out of sample error. Ideally we want the expected out of sample error to be less that 5%, which means that we would expect no error when predicting the 20 test cases.
 ```{r, cache=TRUE}
-library(caret)
-lModel <- lm(classe~., filteredTrainingData)
-confusionMatrix()
+set.seed(334)
+##Sets up 10-fold cross validation
+trainControl <- trainControl(method="cv", number=10)
+rfModel <- train(classe~., data=training, trControl=trainControl)
+rfModel
+```
+As you can see, the accuracy for the model (based on the 10-fold cross validation) is 0.9949, suggesting that the model has 
+an out of sample error of 1-0.9949=0.0051. This means that we expect the results of all 20 test cases to be correct, as 
+intended.
+
+We can find the predictions as follows:
+```{r, message=FALSE}
+predict(rfModel, testing)
 ```
 
+
+###Bibliography
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data     Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6. 
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz4djxgN3gB
